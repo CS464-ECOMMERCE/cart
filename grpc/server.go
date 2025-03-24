@@ -2,12 +2,16 @@ package grpc
 
 import (
 	"cart/configs"
+	pb "cart/proto"
+	"cart/services"
+	"context"
 	"fmt"
 	"log"
 	"net"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/health"
+	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
 // Init initializes and starts the gRPC server
@@ -15,66 +19,68 @@ func Init() {
 	config := configs.GetEnvConfig()
 	address := fmt.Sprintf(":%s", config.GRPCPort)
 
-	// Create TCP listener
 	lis, err := net.Listen("tcp", address)
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		log.Fatalf("failed to listen: %v", err)
 	}
 
-	// Create gRPC server
-	srv := grpc.NewServer()
+	s := grpc.NewServer()
+	healthServer := health.NewServer()
+	grpc_health_v1.RegisterHealthServer(s, healthServer)
+	healthServer.SetServingStatus("ProductService", grpc_health_v1.HealthCheckResponse_SERVING)
+	pb.RegisterCartServiceServer(s, newCartServer())
 
-	// We need to properly generate the protobuf code first
-	// Using the server in a simplified form to avoid errors with undefined types
-
-	// Register reflection service for debugging
-	reflection.Register(srv)
-
-	log.Printf("Starting gRPC server on %s", address)
-
-	// Start serving
-	if err := srv.Serve(lis); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+	log.Printf("Server listening at %v", lis.Addr())
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
 	}
 }
 
-/*
 // cartServer is the gRPC server implementation
 type cartServer struct {
 	cartService *services.CartService
-	UnimplementedCartServiceServer
+	pb.UnimplementedCartServiceServer
+}
+
+func newCartServer() *cartServer {
+	return &cartServer{
+		cartService: services.NewCartService(),
+	}
 }
 
 // AddItem implements the AddItem RPC method
-func (s *cartServer) AddItem(ctx context.Context, req *AddItemRequest) (*Empty, error) {
+func (s *cartServer) AddItem(ctx context.Context, req *pb.AddItemRequest) (*pb.Empty, error) {
 	item := services.CartItem{
 		ProductID: req.Item.ProductId,
 		Quantity:  req.Item.Quantity,
 	}
 
-	err := s.cartService.AddItem(req.UserId, item)
+	err := s.cartService.AddItem(req.SessionId, item)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Empty{}, nil
+	return &pb.Empty{}, nil
 }
 
 // GetCart implements the GetCart RPC method
-func (s *cartServer) GetCart(ctx context.Context, req *GetCartRequest) (*Cart, error) {
-	cart, err := s.cartService.GetCart(req.UserId)
+func (s *cartServer) GetCart(ctx context.Context, req *pb.GetCartRequest) (*pb.Cart, error) {
+	if req.SessionId == "" {
+		return nil, fmt.Errorf("session ID is required")
+	}
+	cart, err := s.cartService.GetCart(req.SessionId)
 	if err != nil {
 		return nil, err
 	}
 
 	// Convert the domain cart to the protobuf cart
-	result := &Cart{
-		UserId: cart.UserID,
-		Items:  make([]*CartItem, 0, len(cart.Items)),
+	result := &pb.Cart{
+		SessionId: cart.SessionId,
+		Items:     make([]*pb.CartItem, 0, len(cart.Items)),
 	}
 
 	for _, item := range cart.Items {
-		result.Items = append(result.Items, &CartItem{
+		result.Items = append(result.Items, &pb.CartItem{
 			ProductId: item.ProductID,
 			Quantity:  item.Quantity,
 		})
@@ -84,81 +90,31 @@ func (s *cartServer) GetCart(ctx context.Context, req *GetCartRequest) (*Cart, e
 }
 
 // EmptyCart implements the EmptyCart RPC method
-func (s *cartServer) EmptyCart(ctx context.Context, req *EmptyCartRequest) (*Empty, error) {
-	err := s.cartService.EmptyCart(req.UserId)
+func (s *cartServer) EmptyCart(ctx context.Context, req *pb.EmptyCartRequest) (*pb.Empty, error) {
+	err := s.cartService.EmptyCart(req.SessionId)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Empty{}, nil
+	return &pb.Empty{}, nil
 }
 
 // RemoveItem implements the RemoveItem RPC method
-func (s *cartServer) RemoveItem(ctx context.Context, req *RemoveItemRequest) (*Empty, error) {
-	err := s.cartService.RemoveItem(req.UserId, req.ProductId)
+func (s *cartServer) RemoveItem(ctx context.Context, req *pb.RemoveItemRequest) (*pb.Empty, error) {
+	err := s.cartService.RemoveItem(req.SessionId, req.ProductId)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Empty{}, nil
+	return &pb.Empty{}, nil
 }
 
 // UpdateItemQuantity implements the UpdateItemQuantity RPC method
-func (s *cartServer) UpdateItemQuantity(ctx context.Context, req *UpdateItemQuantityRequest) (*Empty, error) {
-	err := s.cartService.UpdateItemQuantity(req.UserId, req.ProductId, req.Quantity)
+func (s *cartServer) UpdateItemQuantity(ctx context.Context, req *pb.UpdateItemQuantityRequest) (*pb.Empty, error) {
+	err := s.cartService.UpdateItemQuantity(req.SessionId, req.ProductId, req.Quantity)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Empty{}, nil
+	return &pb.Empty{}, nil
 }
-
-// MergeCart implements the MergeCart RPC method
-func (s *cartServer) MergeCart(ctx context.Context, req *MergeCartRequest) (*Cart, error) {
-	cart, err := s.cartService.MergeCart(req.UserId, req.GuestUserId)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert the domain cart to the protobuf cart
-	result := &Cart{
-		UserId: cart.UserID,
-		Items:  make([]*CartItem, 0, len(cart.Items)),
-	}
-
-	for _, item := range cart.Items {
-		result.Items = append(result.Items, &CartItem{
-			ProductId: item.ProductID,
-			Quantity:  item.Quantity,
-		})
-	}
-
-	return result, nil
-}
-
-// GetCartTTL implements the GetCartTTL RPC method
-func (s *cartServer) GetCartTTL(ctx context.Context, req *GetCartRequest) (*CartTTL, error) {
-	ttl, err := s.cartService.GetCartTTL(req.UserId)
-	if err != nil {
-		return nil, err
-	}
-
-	return &CartTTL{
-		UserId:    req.UserId,
-		TtlSeconds: ttl,
-	}, nil
-}
-
-// ExtendCartTTL implements the ExtendCartTTL RPC method
-func (s *cartServer) ExtendCartTTL(ctx context.Context, req *ExtendCartTTLRequest) (*CartTTL, error) {
-	ttl, err := s.cartService.ExtendCartTTL(req.UserId, req.TtlSeconds)
-	if err != nil {
-		return nil, err
-	}
-
-	return &CartTTL{
-		UserId:    req.UserId,
-		TtlSeconds: ttl,
-	}, nil
-}
-*/

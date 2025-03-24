@@ -22,11 +22,11 @@ var envConfig EnvConfig
 // InitEnv initializes environment variables
 func InitEnv() {
 	// Load .env file if it exists
-	godotenv.Load("./secrets/.env")
+	godotenv.Load("/app/secrets/.env")
 
 	// Set default values
 	envConfig = EnvConfig{
-		GRPCPort:        getEnv("GRPC_PORT", "50051"),
+		GRPCPort:        getEnv("GRPC_PORT", "50050"),
 		RedisAddr:       getEnv("REDIS_ADDR", "redis:6379"),
 		RedisPassword:   getEnv("REDIS_PASSWORD", "redis_password"),
 		RedisDB:         getEnvAsInt("REDIS_DB", 0),

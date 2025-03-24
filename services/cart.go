@@ -14,8 +14,8 @@ type CartItem struct {
 
 // Cart represents a user's shopping cart
 type Cart struct {
-	UserID uint64     `json:"user_id"`
-	Items  []CartItem `json:"items"`
+	SessionId string     `json:"session_id"`
+	Items     []CartItem `json:"items"`
 }
 
 // CartService provides operations for manipulating carts
@@ -31,22 +31,22 @@ func NewCartService() *CartService {
 }
 
 // GetCart retrieves a user's cart
-func (s *CartService) GetCart(userID uint64) (*Cart, error) {
-	key := s.redis.getCartKey(userID)
+func (s *CartService) GetCart(session_id string) (*Cart, error) {
+	key := s.redis.getCartKey(session_id)
 	data, err := s.redis.client.Get(s.redis.ctx, key).Bytes()
 	if err != nil {
 		if err.Error() == "redis: nil" {
 			// Return empty cart if not found
 			return &Cart{
-				UserID: userID,
-				Items:  []CartItem{},
+				SessionId: session_id,
+				Items:     []CartItem{},
 			}, nil
 		}
 		return nil, fmt.Errorf("failed to get cart: %w", err)
 	}
 
 	// Extend TTL on cart access
-	s.redis.ExtendCartTTL(userID)
+	s.redis.ExtendCartTTL(session_id)
 
 	var cart Cart
 	if err := json.Unmarshal(data, &cart); err != nil {
@@ -57,8 +57,8 @@ func (s *CartService) GetCart(userID uint64) (*Cart, error) {
 }
 
 // AddItem adds an item to a user's cart
-func (s *CartService) AddItem(userID uint64, item CartItem) error {
-	cart, err := s.GetCart(userID)
+func (s *CartService) AddItem(session_id string, item CartItem) error {
+	cart, err := s.GetCart(session_id)
 	if err != nil {
 		return err
 	}
@@ -78,8 +78,8 @@ func (s *CartService) AddItem(userID uint64, item CartItem) error {
 }
 
 // RemoveItem removes an item from a user's cart
-func (s *CartService) RemoveItem(userID uint64, productID uint64) error {
-	cart, err := s.GetCart(userID)
+func (s *CartService) RemoveItem(session_id string, productID uint64) error {
+	cart, err := s.GetCart(session_id)
 	if err != nil {
 		return err
 	}
@@ -98,8 +98,8 @@ func (s *CartService) RemoveItem(userID uint64, productID uint64) error {
 }
 
 // UpdateItemQuantity updates the quantity of an item in a user's cart
-func (s *CartService) UpdateItemQuantity(userID uint64, productID uint64, quantity uint64) error {
-	cart, err := s.GetCart(userID)
+func (s *CartService) UpdateItemQuantity(session_id string, productID uint64, quantity uint64) error {
+	cart, err := s.GetCart(session_id)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (s *CartService) UpdateItemQuantity(userID uint64, productID uint64, quanti
 		if item.ProductID == productID {
 			// Remove item if quantity is 0
 			if quantity == 0 {
-				return s.RemoveItem(userID, productID)
+				return s.RemoveItem(session_id, productID)
 			}
 
 			// Update quantity
@@ -120,7 +120,7 @@ func (s *CartService) UpdateItemQuantity(userID uint64, productID uint64, quanti
 
 	// If item not found and quantity > 0, add it
 	if quantity > 0 {
-		return s.AddItem(userID, CartItem{
+		return s.AddItem(session_id, CartItem{
 			ProductID: productID,
 			Quantity:  quantity,
 		})
@@ -130,64 +130,64 @@ func (s *CartService) UpdateItemQuantity(userID uint64, productID uint64, quanti
 }
 
 // EmptyCart removes all items from a user's cart
-func (s *CartService) EmptyCart(userID uint64) error {
-	return s.redis.DeleteCart(userID)
+func (s *CartService) EmptyCart(session_id string) error {
+	return s.redis.DeleteCart(session_id)
 }
 
-// MergeCart merges a guest cart into a user's cart
-func (s *CartService) MergeCart(userID uint64, guestUserID uint64) (*Cart, error) {
-	// Get both carts
-	userCart, err := s.GetCart(userID)
-	if err != nil {
-		return nil, err
-	}
+// // MergeCart merges a guest cart into a user's cart
+// func (s *CartService) MergeCart(session_id string, guestUserID uint64) (*Cart, error) {
+// 	// Get both carts
+// 	userCart, err := s.GetCart(session_id)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	guestCart, err := s.GetCart(guestUserID)
-	if err != nil {
-		return nil, err
-	}
+// 	guestCart, err := s.GetCart(guestUserID)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	// If guest cart is empty, nothing to merge
-	if len(guestCart.Items) == 0 {
-		return userCart, nil
-	}
+// 	// If guest cart is empty, nothing to merge
+// 	if len(guestCart.Items) == 0 {
+// 		return userCart, nil
+// 	}
 
-	// Merge items
-	for _, guestItem := range guestCart.Items {
-		found := false
+// 	// Merge items
+// 	for _, guestItem := range guestCart.Items {
+// 		found := false
 
-		// Look for matching item in user cart
-		for i, userItem := range userCart.Items {
-			if userItem.ProductID == guestItem.ProductID {
-				// Update quantity
-				userCart.Items[i].Quantity += guestItem.Quantity
-				found = true
-				break
-			}
-		}
+// 		// Look for matching item in user cart
+// 		for i, userItem := range userCart.Items {
+// 			if userItem.ProductID == guestItem.ProductID {
+// 				// Update quantity
+// 				userCart.Items[i].Quantity += guestItem.Quantity
+// 				found = true
+// 				break
+// 			}
+// 		}
 
-		// If not found, add to user cart
-		if !found {
-			userCart.Items = append(userCart.Items, guestItem)
-		}
-	}
+// 		// If not found, add to user cart
+// 		if !found {
+// 			userCart.Items = append(userCart.Items, guestItem)
+// 		}
+// 	}
 
-	// Save user cart
-	if err := s.saveCart(userCart); err != nil {
-		return nil, err
-	}
+// 	// Save user cart
+// 	if err := s.saveCart(userCart); err != nil {
+// 		return nil, err
+// 	}
 
-	// Empty guest cart
-	if err := s.EmptyCart(guestUserID); err != nil {
-		return nil, err
-	}
+// 	// Empty guest cart
+// 	if err := s.EmptyCart(guestUserID); err != nil {
+// 		return nil, err
+// 	}
 
-	return userCart, nil
-}
+// 	return userCart, nil
+// }
 
 // GetCartTTL gets the TTL for a user's cart
-func (s *CartService) GetCartTTL(userID uint64) (int64, error) {
-	ttl, err := s.redis.GetCartTTL(userID)
+func (s *CartService) GetCartTTL(session_id string) (int64, error) {
+	ttl, err := s.redis.GetCartTTL(session_id)
 	if err != nil {
 		return 0, err
 	}
@@ -195,8 +195,8 @@ func (s *CartService) GetCartTTL(userID uint64) (int64, error) {
 }
 
 // ExtendCartTTL extends the TTL for a user's cart
-func (s *CartService) ExtendCartTTL(userID uint64, ttlSeconds int64) (int64, error) {
-	if err := s.redis.SetCartTTL(userID, time.Duration(ttlSeconds)*time.Second); err != nil {
+func (s *CartService) ExtendCartTTL(session_id string, ttlSeconds int64) (int64, error) {
+	if err := s.redis.SetCartTTL(session_id, time.Duration(ttlSeconds)*time.Second); err != nil {
 		return 0, err
 	}
 	return ttlSeconds, nil
@@ -209,7 +209,7 @@ func (s *CartService) saveCart(cart *Cart) error {
 		return fmt.Errorf("failed to marshal cart: %w", err)
 	}
 
-	key := s.redis.getCartKey(cart.UserID)
+	key := s.redis.getCartKey(cart.SessionId)
 	if err := s.redis.client.Set(s.redis.ctx, key, data, s.redis.config.RedisDefaultTTL).Err(); err != nil {
 		return fmt.Errorf("failed to save cart: %w", err)
 	}

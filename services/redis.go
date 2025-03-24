@@ -28,6 +28,8 @@ func GetRedisClient() *RedisClient {
 			Addr:     config.RedisAddr,
 			Password: config.RedisPassword,
 			DB:       config.RedisDB,
+			PoolSize: 10,
+			MinIdleConns: 5,
 		})
 
 		// Test connection
@@ -53,30 +55,30 @@ func (r *RedisClient) Close() error {
 }
 
 // getCartKey returns the Redis key for a user's cart
-func (r *RedisClient) getCartKey(userID uint64) string {
-	return fmt.Sprintf("cart:%d", userID)
+func (r *RedisClient) getCartKey(session_id string) string {
+	return fmt.Sprintf("cart:%s", session_id)
 }
 
 // SetCartTTL sets the TTL for a user's cart
-func (r *RedisClient) SetCartTTL(userID uint64, ttl time.Duration) error {
-	key := r.getCartKey(userID)
+func (r *RedisClient) SetCartTTL(session_id string, ttl time.Duration) error {
+	key := r.getCartKey(session_id)
 	return r.client.Expire(r.ctx, key, ttl).Err()
 }
 
 // GetCartTTL returns the TTL for a user's cart
-func (r *RedisClient) GetCartTTL(userID uint64) (time.Duration, error) {
-	key := r.getCartKey(userID)
+func (r *RedisClient) GetCartTTL(session_id string) (time.Duration, error) {
+	key := r.getCartKey(session_id)
 	return r.client.TTL(r.ctx, key).Result()
 }
 
 // ExtendCartTTL extends the TTL for a user's cart
-func (r *RedisClient) ExtendCartTTL(userID uint64) error {
-	return r.SetCartTTL(userID, r.config.RedisDefaultTTL)
+func (r *RedisClient) ExtendCartTTL(session_id string) error {
+	return r.SetCartTTL(session_id, r.config.RedisDefaultTTL)
 }
 
 // DeleteCart deletes a user's cart
-func (r *RedisClient) DeleteCart(userID uint64) error {
-	key := r.getCartKey(userID)
+func (r *RedisClient) DeleteCart(session_id string) error {
+	key := r.getCartKey(session_id)
 	return r.client.Del(r.ctx, key).Err()
 }
 
