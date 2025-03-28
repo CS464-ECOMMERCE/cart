@@ -9,8 +9,8 @@ on:
 env:
   REGISTRY: docker.io
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
-  HELM_REPO: git@github.com:CS464-ECOMMERCE/k8s.git
-  HELM_CHART_PATH: ${{ github.event.repository.name }}-chart/helm
+  HELM_REPO: git@github.com:CS464-ECOMMERCE/${{ github.event.repository.name }}-chart.git
+  HELM_CHART_PATH: helm
   APP_NAME: gitops-argocd-deploy
 
 jobs:
