@@ -26,7 +26,7 @@ func InitEnv() {
 
 	// Set default values
 	envConfig = EnvConfig{
-		GRPCPort:        getEnv("GRPC_PORT", "50050"),
+		GRPCPort:        getEnv("GRPC_PORT", "50051"),
 		RedisAddr:       getEnv("REDIS_ADDR", "redis:6379"),
 		RedisPassword:   getEnv("REDIS_PASSWORD", "redis_password"),
 		RedisDB:         getEnvAsInt("REDIS_DB", 0),
