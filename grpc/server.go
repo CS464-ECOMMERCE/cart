@@ -10,8 +10,10 @@ import (
 	"net"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/status"
 )
 
 // Init initializes and starts the gRPC server
@@ -50,9 +52,12 @@ func newCartServer() *cartServer {
 
 // AddItem implements the AddItem RPC method
 func (s *cartServer) AddItem(ctx context.Context, req *pb.AddItemRequest) (*pb.Empty, error) {
+	if req.Item.Id == 0 || req.Item.Quantity <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "Id or Quantity is invalid")
+	}
 	item := services.CartItem{
-		ProductID: req.Item.ProductId,
-		Quantity:  req.Item.Quantity,
+		Id:       req.Item.Id,
+		Quantity: req.Item.Quantity,
 	}
 
 	err := s.cartService.AddItem(req.SessionId, item)
@@ -66,7 +71,7 @@ func (s *cartServer) AddItem(ctx context.Context, req *pb.AddItemRequest) (*pb.E
 // GetCart implements the GetCart RPC method
 func (s *cartServer) GetCart(ctx context.Context, req *pb.GetCartRequest) (*pb.Cart, error) {
 	if req.SessionId == "" {
-		return nil, fmt.Errorf("session ID is required")
+		return nil, status.Error(codes.InvalidArgument, "session ID is required")
 	}
 	cart, err := s.cartService.GetCart(req.SessionId)
 	if err != nil {
@@ -81,8 +86,8 @@ func (s *cartServer) GetCart(ctx context.Context, req *pb.GetCartRequest) (*pb.C
 
 	for _, item := range cart.Items {
 		result.Items = append(result.Items, &pb.CartItem{
-			ProductId: item.ProductID,
-			Quantity:  item.Quantity,
+			Id:       item.Id,
+			Quantity: item.Quantity,
 		})
 	}
 
@@ -93,7 +98,7 @@ func (s *cartServer) GetCart(ctx context.Context, req *pb.GetCartRequest) (*pb.C
 func (s *cartServer) EmptyCart(ctx context.Context, req *pb.EmptyCartRequest) (*pb.Empty, error) {
 	err := s.cartService.EmptyCart(req.SessionId)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "Something went wrong. Unable to empty cart. %v", err.Error())
 	}
 
 	return &pb.Empty{}, nil
@@ -101,9 +106,9 @@ func (s *cartServer) EmptyCart(ctx context.Context, req *pb.EmptyCartRequest) (*
 
 // RemoveItem implements the RemoveItem RPC method
 func (s *cartServer) RemoveItem(ctx context.Context, req *pb.RemoveItemRequest) (*pb.Empty, error) {
-	err := s.cartService.RemoveItem(req.SessionId, req.ProductId)
+	err := s.cartService.RemoveItem(req.SessionId, req.Id)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "Something went wrong. Unable to remove item. %v", err.Error())
 	}
 
 	return &pb.Empty{}, nil
@@ -111,9 +116,9 @@ func (s *cartServer) RemoveItem(ctx context.Context, req *pb.RemoveItemRequest) 
 
 // UpdateItemQuantity implements the UpdateItemQuantity RPC method
 func (s *cartServer) UpdateItemQuantity(ctx context.Context, req *pb.UpdateItemQuantityRequest) (*pb.Empty, error) {
-	err := s.cartService.UpdateItemQuantity(req.SessionId, req.ProductId, req.Quantity)
+	err := s.cartService.UpdateItemQuantity(req.SessionId, req.Id, req.Quantity)
 	if err != nil {
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "Something went wrong. Unable to update quantity. %v", err.Error())
 	}
 
 	return &pb.Empty{}, nil

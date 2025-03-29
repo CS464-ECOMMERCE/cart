@@ -8,8 +8,8 @@ import (
 
 // CartItem represents an item in the cart
 type CartItem struct {
-	ProductID uint64 `json:"product_id"`
-	Quantity  uint64 `json:"quantity"`
+	Id       uint64 `json:"id"`
+	Quantity uint64 `json:"quantity"`
 }
 
 // Cart represents a user's shopping cart
@@ -65,7 +65,7 @@ func (s *CartService) AddItem(session_id string, item CartItem) error {
 
 	// Check if item already exists in cart
 	for i, cartItem := range cart.Items {
-		if cartItem.ProductID == item.ProductID {
+		if cartItem.Id == item.Id {
 			// Update quantity
 			cart.Items[i].Quantity += item.Quantity
 			return s.saveCart(cart)
@@ -86,7 +86,7 @@ func (s *CartService) RemoveItem(session_id string, productID uint64) error {
 
 	// Find and remove item
 	for i, item := range cart.Items {
-		if item.ProductID == productID {
+		if item.Id == productID {
 			// Remove item by replacing with last element and truncating
 			cart.Items[i] = cart.Items[len(cart.Items)-1]
 			cart.Items = cart.Items[:len(cart.Items)-1]
@@ -106,7 +106,7 @@ func (s *CartService) UpdateItemQuantity(session_id string, productID uint64, qu
 
 	// Find and update item
 	for i, item := range cart.Items {
-		if item.ProductID == productID {
+		if item.Id == productID {
 			// Remove item if quantity is 0
 			if quantity == 0 {
 				return s.RemoveItem(session_id, productID)
@@ -121,8 +121,8 @@ func (s *CartService) UpdateItemQuantity(session_id string, productID uint64, qu
 	// If item not found and quantity > 0, add it
 	if quantity > 0 {
 		return s.AddItem(session_id, CartItem{
-			ProductID: productID,
-			Quantity:  quantity,
+			Id:       productID,
+			Quantity: quantity,
 		})
 	}
 
