@@ -106,6 +106,9 @@ func (s *cartServer) EmptyCart(ctx context.Context, req *pb.EmptyCartRequest) (*
 
 // RemoveItem implements the RemoveItem RPC method
 func (s *cartServer) RemoveItem(ctx context.Context, req *pb.RemoveItemRequest) (*pb.Empty, error) {
+	if req.Id == 0 {
+		return nil, status.Error(codes.InvalidArgument, "Id is invalid")
+	}
 	err := s.cartService.RemoveItem(req.SessionId, req.Id)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Something went wrong. Unable to remove item. %v", err.Error())
@@ -116,6 +119,9 @@ func (s *cartServer) RemoveItem(ctx context.Context, req *pb.RemoveItemRequest) 
 
 // UpdateItemQuantity implements the UpdateItemQuantity RPC method
 func (s *cartServer) UpdateItemQuantity(ctx context.Context, req *pb.UpdateItemQuantityRequest) (*pb.Empty, error) {
+	if req.Id == 0 || req.Quantity <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "Id or Quantity is invalid")
+	}
 	err := s.cartService.UpdateItemQuantity(req.SessionId, req.Id, req.Quantity)
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Something went wrong. Unable to update quantity. %v", err.Error())
