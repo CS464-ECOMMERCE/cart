@@ -20,13 +20,15 @@ type Cart struct {
 
 // CartService provides operations for manipulating carts
 type CartService struct {
-	redis *RedisClient
+	redis         *RedisClient
+	productClient *ProductService
 }
 
 // NewCartService creates a new cart service instance
-func NewCartService() *CartService {
+func NewCartService(productClient *ProductService) *CartService {
 	return &CartService{
-		redis: GetRedisClient(),
+		redis:         GetRedisClient(),
+		productClient: productClient,
 	}
 }
 
@@ -66,10 +68,19 @@ func (s *CartService) AddItem(session_id string, item CartItem) error {
 	// Check if item already exists in cart
 	for i, cartItem := range cart.Items {
 		if cartItem.Id == item.Id {
+			updatedQuantity := cartItem.Quantity + item.Quantity
+			if err := s.productClient.ValidateInventory(item.Id, updatedQuantity); err != nil {
+				return err
+			}
 			// Update quantity
-			cart.Items[i].Quantity += item.Quantity
+			cart.Items[i].Quantity = updatedQuantity
 			return s.saveCart(cart)
 		}
+	}
+
+	// Validate inventory
+	if err := s.productClient.ValidateInventory(item.Id, item.Quantity); err != nil {
+		return err
 	}
 
 	// Add new item

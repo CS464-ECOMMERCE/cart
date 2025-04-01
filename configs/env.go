@@ -10,11 +10,12 @@ import (
 )
 
 type EnvConfig struct {
-	GRPCPort        string
-	RedisAddr       string
-	RedisPassword   string
-	RedisDB         int
-	RedisDefaultTTL time.Duration
+	GRPCPort           string
+	RedisAddr          string
+	RedisPassword      string
+	RedisDB            int
+	RedisDefaultTTL    time.Duration
+	ProductServiceAddr string
 }
 
 var envConfig EnvConfig
@@ -26,11 +27,12 @@ func InitEnv() {
 
 	// Set default values
 	envConfig = EnvConfig{
-		GRPCPort:        getEnv("GRPC_PORT", "50051"),
-		RedisAddr:       getEnv("REDIS_ADDR", "redis:6379"),
-		RedisPassword:   getEnv("REDIS_PASSWORD", "redis_password"),
-		RedisDB:         getEnvAsInt("REDIS_DB", 0),
-		RedisDefaultTTL: getEnvAsDuration("REDIS_DEFAULT_TTL", 30*time.Minute),
+		GRPCPort:           getEnv("GRPC_PORT", "50051"),
+		RedisAddr:          getEnv("REDIS_ADDR", "redis:6379"),
+		RedisPassword:      getEnv("REDIS_PASSWORD", "redis_password"),
+		RedisDB:            getEnvAsInt("REDIS_DB", 0),
+		RedisDefaultTTL:    getEnvAsDuration("REDIS_DEFAULT_TTL", 30*time.Minute),
+		ProductServiceAddr: getEnv("PRODUCT_SERVICE_ADDR", "product.default.svc.cluster.local:50050"),
 	}
 
 	fmt.Println("Environment variables initialized")

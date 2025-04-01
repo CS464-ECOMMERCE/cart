@@ -18,6 +18,7 @@ import (
 
 // Init initializes and starts the gRPC server
 func Init() {
+	ClientInit()
 	config := configs.GetEnvConfig()
 	address := fmt.Sprintf(":%s", config.GRPCPort)
 
@@ -30,7 +31,11 @@ func Init() {
 	healthServer := health.NewServer()
 	grpc_health_v1.RegisterHealthServer(s, healthServer)
 	healthServer.SetServingStatus("ProductService", grpc_health_v1.HealthCheckResponse_SERVING)
-	pb.RegisterCartServiceServer(s, newCartServer())
+
+	productClient := services.NewProductService(ApiServerInstance.ProductServiceConn)
+	cartService := services.NewCartService(productClient)
+
+	pb.RegisterCartServiceServer(s, newCartServer(cartService))
 
 	log.Printf("Server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
@@ -44,9 +49,9 @@ type cartServer struct {
 	pb.UnimplementedCartServiceServer
 }
 
-func newCartServer() *cartServer {
+func newCartServer(cartService *services.CartService) *cartServer {
 	return &cartServer{
-		cartService: services.NewCartService(),
+		cartService: cartService,
 	}
 }
 
