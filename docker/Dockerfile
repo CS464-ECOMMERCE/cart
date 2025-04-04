@@ -10,6 +10,6 @@ RUN go mod download
 
 RUN go build -o main ./main.go
 
-EXPOSE 50050
+EXPOSE 50051
 
 CMD [ "./main" ]

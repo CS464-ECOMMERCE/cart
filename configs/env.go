@@ -32,7 +32,7 @@ func InitEnv() {
 		RedisPassword:      getEnv("REDIS_PASSWORD", "redis_password"),
 		RedisDB:            getEnvAsInt("REDIS_DB", 0),
 		RedisDefaultTTL:    getEnvAsDuration("REDIS_DEFAULT_TTL", 30*time.Minute),
-		ProductServiceAddr: getEnv("PRODUCT_SERVICE_ADDR", "product.default.svc.cluster.local:50050"),
+		ProductServiceAddr: getEnv("PRODUCT_SERVICE_ADDR", "product.default.svc.cluster.local:50051"),
 	}
 
 	fmt.Println("Environment variables initialized")
